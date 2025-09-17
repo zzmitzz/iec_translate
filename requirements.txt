@@ -1,0 +1,15 @@
+fastapi
+pydantic[dotenv]
+librosa
+soundfile
+faster-whisper
+uvicorn[standard]
+websockets
+torchaudio>=2.0.0
+torch>=2.0.0
+tqdm
+tiktoken
+triton>=2.0.0
+python-dotenv
+python-multipart
+pydantic-settings
