@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Realtime Translate - Minimal Client</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+  .row { margin-bottom: 12px; }
+  label { display: block; margin-bottom: 6px; }
+  input[type="text"], input[type="password"] { width: 100%; padding: 8px; }
+  button { padding: 8px 14px; }
+  #status { margin-left: 8px; color: #555; }
+  pre { background: #f6f6f7; padding: 12px; border-radius: 8px; max-height: 300px; overflow: auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <label for="wsUrl">WebSocket URL</label>
+    <input id="wsUrl" type="text" />
+    <small>Default: <span id="wsDefault"></span></small>
+  </div>
+
+  <div class="row">
+    <button id="toggleBtn">Start</button>
+    <span id="status">Idle</span>
+  </div>
+
+  <hr />
+
+  <div class="row">
+    <label>Backend controls</label>
+    <div class="grid">
+      <div>
+        <label for="apiBaseUrl">API Base URL</label>
+        <input id="apiBaseUrl" type="text" placeholder="http://localhost:8000" />
+      </div>
+      <div>
+        <label for="apiKey">API Key (X-API-Key)</label>
+        <input id="apiKey" type="password" placeholder="your-api-key" />
+      </div>
+      <div>
+        <label for="language">Language (e.g., en, es, fr, auto)</label>
+        <input id="language" type="text" placeholder="en" />
+      </div>
+      <div>
+        <label for="model">Model (optional)</label>
+        <input id="model" type="text" placeholder="whisper-large-v3" />
+      </div>
+      <div>
+        <label for="targetLanguage">Target Language (optional)</label>
+        <input id="targetLanguage" type="text" placeholder="en" />
+      </div>
+      <div>
+        <label for="backend">Backend (optional)</label>
+        <input id="backend" type="text" placeholder="auto" />
+      </div>
+      <div>
+        <label for="task">Task (optional)</label>
+        <input id="task" type="text" placeholder="transcribe|translate" />
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <button id="btnSwitch">Switch Language/Model</button>
+    <button id="btnReinit">Reinitialize Engine</button>
+    <button id="btnInfo">Get Engine Info</button>
+  </div>
+
+  <div class="row">
+    <label>Server messages</label>
+    <pre id="log"></pre>
+  </div>
+
+  <script src="./client.js" defer></script>
+</body>
+</html>

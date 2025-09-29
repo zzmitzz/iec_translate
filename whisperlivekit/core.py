@@ -7,20 +7,19 @@ except ImportError:
 from whisperlivekit.warmup import warmup_asr
 from argparse import Namespace
 import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 class TranscriptionEngine:
-    _instance = None
-    _initialized = False
-    
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+    """
+    Refactored TranscriptionEngine that supports language switching.
+    Removed singleton pattern to allow multiple instances with different languages.
+    """
     
     def __init__(self, **kwargs):
-        if TranscriptionEngine._initialized:
-            return
-
+        """Initialize the transcription engine with configuration."""
+        
         defaults = {
             "host": "localhost",
             "port": 8000,
@@ -84,16 +83,24 @@ class TranscriptionEngine:
         config_dict.pop('language', None) 
 
         self.args = Namespace(**config_dict)
+        self._initialize_models()
+
+    def _initialize_models(self):
+        """Initialize all models based on current configuration."""
+        logger.info(f"Initializing models for language: {self.args.lan}")
         
         self.asr = None
         self.tokenizer = None
-        self.diarization = None
+        self.diarization_model = None
         self.vac_model = None
+        self.translation_model = None
         
+        # Initialize VAC model (language-independent)
         if self.args.vac:
             import torch
             self.vac_model, _ = torch.hub.load(repo_or_dir="snakers4/silero-vad", model="silero_vad")            
         
+        # Initialize ASR and tokenizer (language-dependent)
         if self.args.transcription:
             if self.args.backend == "simulstreaming": 
                 from whisperlivekit.simul_whisper import SimulStreamingASR
@@ -122,6 +129,7 @@ class TranscriptionEngine:
                 self.asr, self.tokenizer = backend_factory(self.args)
                 warmup_asr(self.asr, self.args.warmup_file) #for simulstreaming, warmup should be done in the online class not here
 
+        # Initialize diarization (language-independent)
         if self.args.diarization:
             if self.args.diarization_backend == "diart":
                 from whisperlivekit.diarization.diart_backend import DiartDiarization
@@ -136,16 +144,45 @@ class TranscriptionEngine:
             else:
                 raise ValueError(f"Unknown diarization backend: {self.args.diarization_backend}")
         
-        self.translation_model = None
+        # Initialize translation model (language-dependent)
         if self.args.target_language:
             if self.args.lan == 'auto':
                 raise Exception('Translation cannot be set with language auto')
             else:
                 from whisperlivekit.translation.translation import load_model
                 self.translation_model = load_model([self.args.lan]) #in the future we want to handle different languages for different speakers
-            
-        TranscriptionEngine._initialized = True
 
+    def reinitialize_for_language(self, language: str, **additional_config):
+        """
+        Reinitialize the engine for a new language.
+        
+        Args:
+            language: New source language code (e.g., 'en', 'es', 'fr')
+            **additional_config: Additional configuration parameters to update
+        """
+        logger.info(f"Reinitializing TranscriptionEngine from {self.args.lan} to {language}")
+        
+        # Update language in configuration
+        self.args.lan = language
+        
+        # Update any additional configuration
+        for key, value in additional_config.items():
+            if hasattr(self.args, key):
+                setattr(self.args, key, value)
+        
+        # Reinitialize models with new language
+        self._initialize_models()
+        
+        logger.info(f"Successfully reinitialized for language: {language}")
+
+    def get_current_language(self) -> str:
+        """Get the current configured language."""
+        return self.args.lan
+
+    async def close(self):
+        """Clean up resources."""
+        # Add any cleanup logic here if needed
+        pass
 
 
 def online_factory(args, asr, tokenizer, logfile=sys.stderr):

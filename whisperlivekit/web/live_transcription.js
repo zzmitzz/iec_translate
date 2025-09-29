@@ -29,6 +29,7 @@ const statusText = document.getElementById("status");
 const recordButton = document.getElementById("recordButton");
 const chunkSelector = document.getElementById("chunkSelector");
 const websocketInput = document.getElementById("websocketInput");
+
 const websocketDefaultSpan = document.getElementById("wsDefaultUrl");
 const linesTranscriptDiv = document.getElementById("linesTranscript");
 const timerElement = document.querySelector(".timer");

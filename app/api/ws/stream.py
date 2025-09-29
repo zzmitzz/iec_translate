@@ -1,5 +1,5 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request
-from whisperlivekit import TranscriptionEngine, AudioProcessor
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, Query
+from whisperlivekit import AudioProcessor
 import asyncio
 import logging
 from starlette.staticfiles import StaticFiles
@@ -11,6 +11,7 @@ from app.core.settings import get_settings
 from app.core.security import websocket_auth
 from app.api.ws.connection.connection_manager import connection_manager
 from datetime import datetime
+from typing import Optional
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ async def handle_websocket_results(websocket, results_generator, room: int):
     """Consumes results from the audio processor and sends them via WebSocket."""
     try:
         async for response in results_generator:
+            print(response)
             # await websocket.send_json(response)
             await connection_manager.broadcast_to_room(room, response)
         # when the results_generator finishes it means all audio has been processed
@@ -35,19 +37,53 @@ async def handle_websocket_results(websocket, results_generator, room: int):
         logger.exception(f"Error in WebSocket results handler: {e}")
 
 @router.websocket("/{room_id}")
-async def stream(websocket: WebSocket, room_id: int):
+async def stream(
+    websocket: WebSocket, 
+    room_id: int, 
+    language: Optional[str] = Query(None, description="Language code for transcription (e.g., 'en', 'es', 'fr')")
+):
     # if not await websocket_auth(websocket):
     #     return
-    print("--------------------------------")
-    # Use the shared TranscriptionEngine from app state instead of creating a new one
-    engine = websocket.app.state.transcription_engine
+    
+    engine_manager = websocket.app.state.engine_manager
+    
+    # Get the appropriate engine for the requested language
+    if language:
+        try:
+            engine = await engine_manager.get_engine_for_language(language)
+            logger.info(f"Using TranscriptionEngine for language: {language}")
+        except Exception as e:
+            logger.error(f"Failed to get engine for language {language}: {e}")
+            await websocket.close(code=1011, reason=f"Failed to initialize language {language}")
+            return
+    else:
+        # Use current default engine
+        engine = engine_manager.get_current_engine()
+        if engine is None:
+            logger.error("No default engine available")
+            await websocket.close(code=1011, reason="No transcription engine available")
+            return
+        logger.info(f"Using default TranscriptionEngine for language: {engine.get_current_language()}")
+    
     audio_processor = AudioProcessor(
         transcription_engine=engine,
     )
+    
+    # Pre-initialize the audio processor tasks (this is the slow part)
+    try:
+        results_generator = await audio_processor.create_tasks()
+    except Exception as e:
+        logger.error(f"Failed to initialize AudioProcessor: {e}")
+        await websocket.close(code=1011, reason="Server initialization failed")
+        return
+    
+    # NOW accept the WebSocket connection - client won't timeout
     await connection_manager.connect(websocket, room_id)
-    results_generator = await audio_processor.create_tasks()
+    
+    # Start the results handler task
     websocket_task = asyncio.create_task(handle_websocket_results(websocket, results_generator, room_id))
-    logger.info("New websocket connection opened. Waiting for audio data...")
+    logger.info(f"New websocket connection opened for room {room_id} with language {engine.get_current_language()}. Waiting for audio data...")
+    
     try:
         while True:
             event = await websocket.receive()

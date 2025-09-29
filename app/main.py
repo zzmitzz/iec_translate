@@ -3,9 +3,10 @@ import logging
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .core.settings import get_settings
+from app.core.settings import get_settings
 from contextlib import asynccontextmanager
-from whisperlivekit import TranscriptionEngine, parse_args
+from whisperlivekit import parse_args
+from whisperlivekit.engine_manager import TranscriptionEngineManager
 from app.api.restful.reconfig_model import router as reconfig_model_router
 from app.api.ws.stream import router as stream_router
 from app.api.ws.connection.connection_manager import connection_manager
@@ -32,11 +33,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.transcription_engine = TranscriptionEngine(
-        **vars(args),
+    # Create the TranscriptionEngineManager with default configuration from CLI args
+    app.state.engine_manager = TranscriptionEngineManager(
+        default_config=vars(args)
     )
     yield
-    await app.state.transcription_engine.close()
+
+    print("------------Close connection--------------------")
+    await app.state.engine_manager.close_all()
 
 
 app = FastAPI(
@@ -168,7 +172,7 @@ async def get_app_settings():
 if __name__ == "__main__":
     logger.info("Starting server with Uvicorn...")
     uvicorn.run(
-        "main:app",
+        "app.main:app",
         host=settings.host,
         port=settings.port,
         reload=settings.reload,
